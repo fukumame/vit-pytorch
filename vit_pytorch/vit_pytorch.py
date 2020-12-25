@@ -48,12 +48,15 @@ class Attention(nn.Module):
 
     def forward(self, x, mask = None):
         b, n, _, h = *x.shape, self.heads
-        # xの値をLinearに通して、それぞれqkvにする
+        # xの値をLinearに通して、それぞれquery, key, valueの3つにする
+        # chunkはテンソルを指定された数と軸によって分割するメソッド
         qkv = self.to_qkv(x).chunk(3, dim = -1)
+
         # multi head attentionに変更　hがヘッド数, nはパッチ数
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv) # q, k, v: batch x head数 x (patch数 + 1) x headごとのdimention
 
-        # パッチ間の内積を取ることで、queryとkeyの相関関係を算出する。 ここでのiとjは、(パッチ+1)を表す。
+        # パッチ間の内積を取ることで、queryとkeyの相関関係を算出する。 ここでのiとjは、(パッチ数+1)を表す。
+        # einsumの使い方は、 https://www.procrasist.com/entry/einsum などを見ると良い
         dots = torch.einsum('bhid,bhjd->bhij', q, k) * self.scale # dots: batch x head数 x (patch数 + 1) x (patch数 + 1)
 
         # マスクをする際のマスクの値を算出

@@ -156,6 +156,7 @@ class ViT(nn.Module):
 
 
 if __name__ == '__main__':
+    # テスト実行用のコード
     v = ViT(
         image_size=256,
         patch_size=32,

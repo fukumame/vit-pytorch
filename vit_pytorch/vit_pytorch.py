@@ -131,15 +131,20 @@ class ViT(nn.Module):
         # pは画像における各パッチの長さ(高さ、幅で共通)
         p = self.patch_size
 
-        # (h w): パッチの数, (p1 p2 c): 各パッチの大きさ
-        # (B, C, H, W)を、(B, 合計Patch数, 各Patchの面積) に変更
-        x = rearrange(img, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = p, p2 = p) # x: (batch) x (patch数) x (patch面積)
+        # (h w): パッチの数, (p1 p2 c): 各パッチの大きさ(正確には、高さp、横p、奥行きcのパッチの体積)
+        # (B, C, H, W)を、(B, 合計Patch数, 各Patchの体積) に変更
+        # einopsのrearrangeの操作は、下記のコードと等価
+        # _, c, h, w = img.shape
+        # x = img.view(-1, h//p * w//p, p*p*c)
+        x = rearrange(img, 'b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = p, p2 = p) # x: (batch) x (patch数) x (patch体積)
 
-        # Linear層を通すことで、埋め込み空間の特徴ベクトルに変更
+        # Linear層を通すことで、パッチの体積を、埋め込み空間の特徴ベクトルに圧縮
         x = self.patch_to_embedding(x) # x: (batch) x (patch数) x (embedding_dim)
         b, n, _ = x.shape  # b: batch, n: patch数
 
         # cls_tokenをBatch数だけ増やす
+        # einopsのrepeat操作は、下記と等価
+        # cls_tokens = self.cls_token.repeat(3, 1, 1)
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b) # cls_tokens: (batch) x 1 x (embedding_dim)
         # class tokenを元のベクトルに結合する
         x = torch.cat((cls_tokens, x), dim=1) # x: (batch) x (patch数 + 1) x (embedding_dim)

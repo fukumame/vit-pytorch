@@ -1,5 +1,9 @@
 <img src="./vit.gif" width="500px"></img>
 
+## このレポジトリについて
+このレポジトリは、オリジナルのVision Transformerのコードに、日本語での解説コメントを入れたものです。  
+[こちらのコード](./vit_pytorch/vit_pytorch.py)にコメントを入れています。
+
 ## Vision Transformer - Pytorch
 
 Implementation of <a href="https://openreview.net/pdf?id=YicbFdNTTy">Vision Transformer</a>, a simple way to achieve SOTA in vision classification with only a single transformer encoder, in Pytorch. Significance is further explained in <a href="https://www.youtube.com/watch?v=TrdevFK_am4">Yannic Kilcher's</a> video. There's really not much to code here, but may as well lay it out for everyone so we expedite the attention revolution.

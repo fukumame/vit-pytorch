@@ -57,7 +57,7 @@ class Attention(nn.Module):
 
         # パッチ間の内積を取ることで、queryとkeyの相関関係を算出する。 ここでのiとjは、(パッチ数+1)を表す。
         # einsumの使い方は、 https://www.procrasist.com/entry/einsum などを見ると良い
-        dots = torch.einsum('bhid,bhjd->bhij', q, k) * self.scale # dots: batch x head数 x (patch数 + 1) x (patch数 + 1)
+        dots = torch.einsum('bhqd, bhkd -> bhqk', q, k) * self.scale # dots: batch x head数 x (patch数 + 1) x (patch数 + 1)
 
         # マスクをする際のマスクの値を算出
         # finfoによって、浮動小数点の情報が得られる。 torch.finfo(dots.dtype).maxは浮動小数点の最大値
@@ -71,7 +71,9 @@ class Attention(nn.Module):
             # マスク行列同士の論理積をとる。 Noneを入れることで次元を1つ増やす (unsqueezeと同じ効果)
             mask = mask[:, None, :] * mask[:, :, None] # mask: 1 x (パッチ数hw + 1) x (パッチ数hw + 1)
 
-            # maskの値がFalseの部分に、マイナス無限大を設定する。マイナス無限大の部分は後続のsoftmaxを介すとゼロになり、valueをゼロにできる
+            # masked_fill_は第1引数がTrueの部分にmask_valueを設定する
+            # ~maskはbool値の反転なので、maskの値がFalseの部分に、マイナス無限大を設定する。
+            # マイナス無限大の部分は後続のsoftmaxを介すとゼロになり、valueをゼロにできる
             dots.masked_fill_(~mask, mask_value)
             del mask
         # ソフトマックスを通すことで 0 ~ 1の範囲に収める
@@ -79,7 +81,7 @@ class Attention(nn.Module):
         attn = dots.softmax(dim=-1)
 
         # queryとkeyの相関関係とvalueの内積を取ることで、各queryの重要度ベクトル？的なものが計算できる
-        out = torch.einsum('bhij,bhjd->bhid', attn, v)
+        out = torch.einsum('bhqk, bhkd -> bhqd', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)') # out: batch x (patch数 + 1) x input_dimension (xと同じ次元に戻る)
         # 全結合層に通す
         out =  self.to_out(out)
@@ -150,13 +152,14 @@ class ViT(nn.Module):
         x = torch.cat((cls_tokens, x), dim=1) # x: (batch) x (patch数 + 1) x (embedding_dim)
 
         # 位置エンコーディングを足し合わせる
-        x += self.pos_embedding[:, :(n + 1)] # x: (batch) x (patch数 + 1) x (embedding_dim)
+        x += self.pos_embedding # x: (batch) x (patch数 + 1) x (embedding_dim)
         x = self.dropout(x)
 
         # transformerの処理
         x = self.transformer(x, mask) # x: (batch) x (patch数 + 1) x (dimension)
 
         # (パッチ数 + class token=1)の次元に沿って平均を取る
+        # 全結合層の入力ベクトルとなる
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0] # x: (batch) x (dimension)
 
         x = self.to_latent(x)
